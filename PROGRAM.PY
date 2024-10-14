@@ -1,20 +1,12 @@
-import os
-import datetime
+import glob
 import requests
+from environs import Env
+import os
 
-YANDEX_DISK_TOKEN = ''
-YANDEX_DISK_FOLDER_NAME = 'test4' # имя папки, в которую будут загружаться файлы
-local_folder_path = 'c://stady/python' # папка, из которой будут загружаться файлы
-
-def get_today_files(folder_path):
-    today = datetime.date.today()
+def get_files_by_date(folder_path, target_date):
     files = []
-    for filename in os.listdir(folder_path):
-        file_path = os.path.join(folder_path, filename)
-        if os.path.isfile(file_path):
-            file_creation_date = datetime.datetime.fromtimestamp(os.path.getctime(file_path)).date()
-            if file_creation_date == today:
-                files.append(file_path)
+    for file_path in glob.glob(f"{folder_path}/**/*{target_date}*", recursive=True):
+        files.append(file_path)
     return files
 
 def get_upload_link(folder_name, filename, token):
@@ -36,14 +28,23 @@ def upload_file(file_path, upload_url):
         print(f'Ошибка при загрузке файла {os.path.basename(file_path)}: {response.text}')
 
 if __name__ == '__main__':
-    today_files = get_today_files(local_folder_path)
-    if today_files:
-        print(f'Найдено {len(today_files)} файлов, созданных сегодня:')
-        for file_path in today_files:
+    env = Env()
+    env.read_env()
+
+    YANDEX_DISK_TOKEN = env('YANDEX_DISK_TOKEN')
+    YANDEX_DISK_FOLDER_NAME = env('YANDEX_DISK_FOLDER_NAME', 'uploaded_files')
+    LOCAL_FOLDER_PATH = env('LOCAL_FOLDER_PATH')
+    TARGET_DATE = env('TARGET_DATE')
+
+    files_by_date = get_files_by_date(LOCAL_FOLDER_PATH, TARGET_DATE)
+    
+    if files_by_date:
+        print(f'Найдено {len(files_by_date)} файлов, содержащих дату {TARGET_DATE} в названии:')
+        for file_path in files_by_date:
             filename = os.path.basename(file_path)
             upload_link = get_upload_link(YANDEX_DISK_FOLDER_NAME, filename, YANDEX_DISK_TOKEN)
             if upload_link:
                 upload_file(file_path, upload_link)
-            os.remove(file_path)
+            os.unlink(file_path)
     else:
-        print(f'В папке {local_folder_path} нет файлов, созданных сегодня.')
+        print(f'В папке {LOCAL_FOLDER_PATH} нет файлов с датой {TARGET_DATE} в названии.')
